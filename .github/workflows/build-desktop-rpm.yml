@@ -68,9 +68,27 @@ jobs:
         run: pnpm --filter @deeix/desktop build:sidecar
 
       - name: Build desktop RPM
-        # Only the rpm bundle: skips updater artifacts, so no updater signing
-        # key is needed (upstream keeps those secrets in the release repo).
-        run: pnpm --filter @deeix/desktop exec tauri build --bundles rpm
+        # Only the rpm bundle: skips updater artifacts, so no real updater
+        # signing key is needed (upstream keeps those secrets in the release
+        # repo). An ephemeral key satisfies the createUpdaterArtifacts check.
+        env:
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: |
+          set -o pipefail
+          pnpm --filter @deeix/desktop exec tauri signer generate \
+            -w "$RUNNER_TEMP/updater.key" --password "" --force > /dev/null
+          export TAURI_SIGNING_PRIVATE_KEY="$(cat "$RUNNER_TEMP/updater.key")"
+          pnpm --filter @deeix/desktop exec tauri build --bundles rpm 2>&1 | tee "$RUNNER_TEMP/tauri-build.log"
+
+      - name: Publish build log tail
+        if: failure()
+        run: |
+          {
+            echo "### tauri build output (tail)"
+            echo '```'
+            tail -c 8000 "$RUNNER_TEMP/tauri-build.log" 2>/dev/null || echo "log file missing"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
