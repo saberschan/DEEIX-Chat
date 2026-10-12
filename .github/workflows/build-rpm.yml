@@ -1,14 +1,10 @@
 name: Build RPM
 
 # Builds the DEEIX Chat server RPM (Go API binary + static web export +
-# systemd unit + default SQLite config). Runs on demand or when
-# sync-upstream.yml dispatches it after pulling new upstream commits.
-#
-# The RPM lands as a workflow artifact: deeix-chat-<version>-rpm.
+# systemd unit + default SQLite config). Manual only; the desktop client
+# RPM is built by build-desktop-rpm.yml.
 
 on:
-  push:
-    branches: [dev]
   workflow_dispatch:
   workflow_call:
 

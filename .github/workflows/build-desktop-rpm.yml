@@ -1,0 +1,80 @@
+name: Build desktop RPM
+
+# Builds the Tauri desktop client as an RPM (Linux x86_64), following the
+# same build recipe as the upstream desktop-release.yml Linux leg.
+# The embedded local-mode server (Go sidecar) is compiled natively and
+# bundled into the app, so the installed client runs fully standalone.
+#
+# The RPM lands as a workflow artifact: deeix-chat-desktop-<version>-rpm.
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-desktop-rpm-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 10.17.0
+  NODE_VERSION: 24
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  build-desktop-rpm:
+    name: Build desktop RPM
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: meta
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build embedded server sidecar
+        run: pnpm --filter @deeix/desktop build:sidecar
+
+      - name: Build desktop RPM
+        # Only the rpm bundle: skips updater artifacts, so no updater signing
+        # key is needed (upstream keeps those secrets in the release repo).
+        run: pnpm --filter @deeix/desktop exec tauri build --bundles rpm
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deeix-chat-desktop-${{ steps.meta.outputs.version }}-rpm
+          path: apps/desktop/src-tauri/target/release/bundle/rpm/*.rpm
+          if-no-files-found: error

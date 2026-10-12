@@ -56,14 +56,14 @@ jobs:
           git push origin dev
           echo "pushed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Dispatch RPM build
+      - name: Dispatch RPM builds
         if: steps.push.outputs.pushed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh workflow run build-rpm.yml --ref dev
+          gh workflow run build-desktop-rpm.yml --ref dev
           {
             echo "### Sync upstream"
             echo "Merged and pushed ${{ steps.check.outputs.count }} upstream commit(s) to \`dev\`."
-            echo "RPM build dispatched: see the [Build RPM workflow](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/build-rpm.yml)."
+            echo "Desktop RPM build dispatched: see the [Build desktop RPM workflow](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/build-desktop-rpm.yml)."
           } >> "$GITHUB_STEP_SUMMARY"
