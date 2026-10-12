@@ -7,6 +7,8 @@ name: Build RPM
 # The RPM lands as a workflow artifact: deeix-chat-<version>-rpm.
 
 on:
+  push:
+    branches: [dev]
   workflow_dispatch:
   workflow_call:
 
@@ -81,7 +83,7 @@ jobs:
           install -m 0644 .github/rpm/config.yaml "$staging/config.yaml"
           install -m 0644 .github/rpm/deeix-chat.service "$staging/deeix-chat.service"
           tar -czf "${staging}.tar.gz" "$staging"
-          mkdir -p "$HOME/rpmbuild/SOURCES"
+          mkdir -p "$HOME/rpmbuild"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
           mv "${staging}.tar.gz" "$HOME/rpmbuild/SOURCES/"
 
       - name: Build RPM
