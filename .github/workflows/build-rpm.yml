@@ -1,0 +1,103 @@
+name: Build RPM
+
+# Builds the DEEIX Chat server RPM (Go API binary + static web export +
+# systemd unit + default SQLite config). Runs on demand or when
+# sync-upstream.yml dispatches it after pulling new upstream commits.
+#
+# The RPM lands as a workflow artifact: deeix-chat-<version>-rpm.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-rpm-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 10.17.0
+  NODE_VERSION: 24
+
+jobs:
+  build-rpm:
+    name: Build RPM package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the backend build can embed the git commit.
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: meta
+        run: |
+          version="$(cat VERSION)"
+          commit="$(git rev-parse --short HEAD)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "Building deeix-chat $version (commit $commit)"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libsqlite3-dev rpm
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Build web frontend (static export)
+        run: |
+          pnpm install --frozen-lockfile --filter @deeix/web
+          pnpm --filter @deeix/web build
+
+      - name: Build backend server
+        run: make -C backend build
+        env:
+          CGO_ENABLED: "1"
+
+      - name: Assemble RPM source tarball
+        run: |
+          set -euo pipefail
+          version="${{ steps.meta.outputs.version }}"
+          staging="deeix-chat-${version}"
+          mkdir -p "$staging"
+          install -m 0755 .cache/deeix-chat/deeix-chat "$staging/deeix-chat"
+          cp -a apps/web/out "$staging/frontend-out"
+          install -m 0644 LICENSE NOTICE "$staging/"
+          install -m 0644 .github/rpm/config.yaml "$staging/config.yaml"
+          install -m 0644 .github/rpm/deeix-chat.service "$staging/deeix-chat.service"
+          tar -czf "${staging}.tar.gz" "$staging"
+          mkdir -p "$HOME/rpmbuild/SOURCES"
+          mv "${staging}.tar.gz" "$HOME/rpmbuild/SOURCES/"
+
+      - name: Build RPM
+        run: |
+          set -euo pipefail
+          version="${{ steps.meta.outputs.version }}"
+          rpmbuild --define "_topdir $HOME/rpmbuild" \
+                   --define "pkg_version ${version}" \
+                   -bb .github/rpm/deeix-chat.spec
+          mkdir -p dist
+          cp -v "$HOME/rpmbuild/RPMS/"*/*.rpm dist/
+          rpm -qpi dist/*.rpm
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deeix-chat-${{ steps.meta.outputs.version }}-rpm
+          path: dist/*.rpm
+          if-no-files-found: error

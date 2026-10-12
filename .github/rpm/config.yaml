@@ -1,0 +1,92 @@
+# DEEIX Chat server configuration — RPM single-node profile (SQLite + local storage).
+# Runtime data lives in /var/lib/deeix-chat; static web assets are read-only under
+# /usr/share/deeix-chat/frontend/out.
+#
+# Before exposing this service beyond localhost, replace both secrets below with
+# strong random values (`openssl rand -hex 32`) and run `systemctl restart deeix-chat`.
+
+app:
+  name: DEEIX Chat
+  # Switch to prod once real secrets are configured; prod enforces secret strength.
+  env: dev
+
+server:
+  http_port: "8080"
+  cors_allow_origin: "http://localhost:8080,http://127.0.0.1:8080,tauri://localhost,http://tauri.localhost"
+  trusted_proxies: "127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128,fc00::/7"
+  public_api_base_url: "http://localhost:8080"
+  public_web_base_url: "http://localhost:8080"
+  frontend_dist_dir: /usr/share/deeix-chat/frontend/out
+  read_header_timeout_seconds: 10
+  read_timeout_seconds: 120
+  idle_timeout_seconds: 120
+  max_header_bytes: 1048576
+  shutdown_timeout_seconds: 10
+
+security:
+  # Required. Replace both values with strong random secrets.
+  jwt_secret: "change-me-dev-jwt-secret"
+  # Required only when an MCP Server uses ${DEEIX_SIGNED_USER_CONTEXT}.
+  mcp_user_context_secret: ""
+  data_encryption_key: "change-me-dev-data-encryption-key-32-bytes-min"
+  # Previous data_encryption_key values, kept so data encrypted with them stays readable.
+  data_encryption_keys_previous: []
+  # Enable to block outbound requests to private or metadata networks.
+  ssrf_protection_enabled: false
+  ssrf_allowed_hosts: ""
+  ssrf_allowed_cidrs: ""
+  turnstile_siteverify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+branding:
+  title: DEEIX Chat
+  short_name: DEEIX
+  description: DEEIX Chat is a multi-model AI conversation system.
+  logo_url: ""
+  favicon_url: /favicon.ico
+  pwa_icon_192_url: /pwa/icon-192.png
+  pwa_icon_512_url: /pwa/icon-512.png
+  pwa_maskable_icon_512_url: /pwa/icon-maskable-512.png
+  apple_touch_icon_180_url: /pwa/apple-touch-icon.png
+
+database:
+  driver: sqlite
+  sqlite:
+    path: /var/lib/deeix-chat/data/deeix.db
+    dsn: ""
+    max_open_conns: 1
+    busy_timeout_ms: 5000
+    cache_size_kb: 20480
+    mmap_size_bytes: 268435456
+    synchronous: NORMAL
+    temp_store: MEMORY
+
+cache:
+  # Single-process SQLite profile uses the in-process cache.
+  driver: memory
+
+storage:
+  backend: local
+  local:
+    root_dir: /var/lib/deeix-chat/storage
+  s3:
+    # Required when storage.backend is s3.
+    endpoint: ""
+    region: auto
+    bucket: ""
+    prefix: ""
+    access_key_id: ""
+    secret_access_key: ""
+    force_path_style: true
+
+geoip:
+  # ipwhois uses an outbound lookup service; change to none for offline machines.
+  provider: ipwhois
+  timeout_ms: 2500
+
+observability:
+  tracing:
+    # Set endpoint to auto-enable tracing.
+    endpoint: ""
+    headers: ""
+    insecure: false
+    sampling_rate: 1

@@ -1,0 +1,69 @@
+name: Sync upstream
+
+# Keeps this fork's dev branch in sync with the upstream repository
+# (DEEIX-AI/DEEIX-Chat) and dispatches the RPM build whenever new
+# upstream commits were merged.
+#
+# Runs daily and on demand. A merge conflict fails the job visibly:
+# resolve it locally, push, then re-run the workflow to trigger a build.
+
+on:
+  schedule:
+    - cron: "30 1 * * *" # daily 01:30 UTC (09:30 Beijing)
+  workflow_dispatch:
+
+permissions:
+  contents: write # push merged commits
+  actions: write # dispatch build-rpm.yml
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Merge upstream dev
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/DEEIX-AI/DEEIX-Chat.git
+          git fetch upstream dev
+
+      - name: Check for new upstream commits
+        id: check
+        run: |
+          count="$(git rev-list --count HEAD..upstream/dev)"
+          echo "New upstream commits: $count"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Merge upstream/dev
+        if: steps.check.outputs.count != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge upstream/dev --no-edit
+
+      - name: Push to fork
+        id: push
+        if: steps.check.outputs.count != '0'
+        run: |
+          git push origin dev
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch RPM build
+        if: steps.push.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build-rpm.yml --ref dev
+          {
+            echo "### Sync upstream"
+            echo "Merged and pushed ${{ steps.check.outputs.count }} upstream commit(s) to \`dev\`."
+            echo "RPM build dispatched: see the [Build RPM workflow](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/build-rpm.yml)."
+          } >> "$GITHUB_STEP_SUMMARY"

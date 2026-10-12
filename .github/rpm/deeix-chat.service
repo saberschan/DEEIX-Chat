@@ -1,0 +1,35 @@
+[Unit]
+Description=DEEIX Chat server (API + web UI)
+Documentation=https://github.com/DEEIX-AI/DEEIX-Chat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=deeix-chat
+Group=deeix-chat
+WorkingDirectory=/var/lib/deeix-chat
+EnvironmentFile=-/etc/sysconfig/deeix-chat
+Environment=CONFIG_FILE=/etc/deeix-chat/config.yaml
+Environment=FRONTEND_DIST_DIR=/usr/share/deeix-chat/frontend/out
+Environment=SQLITE_PATH=/var/lib/deeix-chat/data/deeix.db
+Environment=STORAGE_ROOT_DIR=/var/lib/deeix-chat/storage
+Environment=GEOIP_DATABASE_PATH=/var/lib/deeix-chat/data/geoip/geoip.mmdb
+ExecStart=/usr/libexec/deeix-chat/deeix-chat
+StateDirectory=deeix-chat
+ConfigurationDirectory=deeix-chat
+Restart=on-failure
+RestartSec=5s
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/deeix-chat
+
+[Install]
+WantedBy=multi-user.target
