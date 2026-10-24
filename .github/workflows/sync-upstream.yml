@@ -14,7 +14,8 @@ on:
 
 permissions:
   contents: write # push merged commits
-  actions: write # dispatch build-rpm.yml
+  workflows: write # merged upstream commits touch .github/workflows, which GITHUB_TOKEN can only push with this
+  actions: write # dispatch build-desktop-rpm.yml
 
 concurrency:
   group: sync-upstream
