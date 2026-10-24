@@ -22,7 +22,6 @@ concurrency:
 
 env:
   PNPM_VERSION: 10.17.0
-  NODE_VERSION: 24
   CARGO_INCREMENTAL: 0
 
 jobs:
@@ -42,7 +41,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
