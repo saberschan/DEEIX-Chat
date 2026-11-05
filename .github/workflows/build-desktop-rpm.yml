@@ -14,7 +14,7 @@ on:
   workflow_call:
 
 permissions:
-  contents: read
+  contents: write # publish the RPM to the rolling desktop-rpm release
 
 concurrency:
   group: build-desktop-rpm-${{ github.ref }}
@@ -95,3 +95,23 @@ jobs:
           name: deeix-chat-desktop-${{ steps.meta.outputs.version }}-rpm
           path: apps/desktop/src-tauri/target/release/bundle/rpm/*.rpm
           if-no-files-found: error
+
+      - name: Publish RPM to rolling release
+        # Release assets are downloadable without authentication, unlike
+        # workflow artifacts. The desktop-rpm tag is recreated on every build
+        # so the release always holds exactly the latest build.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="desktop-rpm"
+          mkdir -p dist
+          for f in apps/desktop/src-tauri/target/release/bundle/rpm/*.rpm; do
+            cp "$f" "dist/$(basename "$f")"
+            cp "$f" dist/deeix-chat-desktop-latest-x86_64.rpm
+          done
+          gh release delete "$tag" --yes --cleanup-tag >/dev/null 2>&1 || true
+          sleep 5
+          gh release create "$tag" dist/*.rpm \
+            --title "DEEIX Chat desktop RPM (latest)" \
+            --notes "Rolling desktop-client RPM built from dev at commit $(git rev-parse --short HEAD) (VERSION $(cat VERSION)). deeix-chat-desktop-latest-x86_64.rpm and the versioned file are the same build."
